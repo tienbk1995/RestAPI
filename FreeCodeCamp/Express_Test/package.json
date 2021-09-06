@@ -1,0 +1,16 @@
+{
+  "name": "express_test",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+		"hmr": "nodemon index.js",
+		"start": "node index.js",
+		"nodemon": "npm run hmr" 
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.17.1"
+  }
+}
