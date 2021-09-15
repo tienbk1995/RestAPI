@@ -63,6 +63,11 @@ const validateExistingShortUrl = (id, callback) => {
   });
 };
 
+const removeExistingUrl = (id, callback) => {
+  urlModel.findOneAndRemove({ short_url: id }, (err, data) => {
+    callback(err, data);
+  });
+};
 const validateSyntax = (url) => {
   const pattern = /(https?|ftp):\/{1,2}([a-zA-Z0-9-]*\.)*(com|vn|org)$/g;
   return url.match(pattern);
@@ -89,8 +94,7 @@ router.post("/shorturl", (req, res, next) => {
       return next(err);
     } else if (data) {
       console.log("This URL has already been registered");
-      // return next(data);
-      return res.status(404).send({ error: "URL has already been registered" });
+      return res.status(404).send({ Id_Existed: data.short_url });
     } else {
       console.log("URL hasn't been in database yet, starting to validate..");
       lookupDNS(req.body.url, (err, address, family) => {
@@ -119,6 +123,21 @@ router.get("/shorturl/:code", (req, res, next) => {
     } else if (data) {
       console.log("Start redirect to this URL");
       res.redirect(data.original_url);
+    } else {
+      res.send({ short_url: "This URL has not existed yet" });
+    }
+  });
+});
+
+router.get("/shorturl/remove/:code", (req, res, next) => {
+  removeExistingUrl(req.params.code, (err, data) => {
+    if (err) {
+      return next(err);
+    } else if (data) {
+      console.log("Start remove this URL");
+      res
+        .status(200)
+        .send("'" + data.original_url + "'" + " being removed successfully");
     } else {
       res.send({ short_url: "This URL has not existed yet" });
     }
