@@ -95,28 +95,33 @@ const validateQuery = (userId, query) => {
   let pipeline;
   if (query.to && query.from && query.limit) {
     pipeline = [
-      { $match: { _id: userId } },
-      { $unwind: "$logs" },
-      {
-        $group: {
-          _id: "$logs.date",
-        },
-      },
       {
         $match: {
-          _id: {
-            $gt: new Date(query.from).toDateString(), // yyyy-mm-dd
-            $lt: new Date(query.to).toDateString(), // yyyy-mm-dd
+          _id: userId,
+        },
+      },
+      { $unwind: "$logs" },
+      {
+        $match: {
+          "logs.date": {
+            $gte: new Date(query.from), // yyyy-mm-dd
+            $lte: new Date(query.to), // yyyy-mm-dd
           },
         },
       },
       { $limit: parseInt(query.limit) },
       {
-        $project: {
-          username: true,
-          _id: true,
-          // logs: true,
-          // count: { $size: "$logs" },
+        $group: {
+          _id: "$_id",
+          username: { $first: "$username" },
+          count: { $sum: 1 },
+          logs: { $push: "$logs" },
+        },
+      },
+      {
+        $addFields: {
+          from: query.from,
+          to: query.to,
         },
       },
     ];
@@ -149,7 +154,8 @@ const dateCheck = (date) => {
   if (!date.isValid()) {
     date = new Date();
   }
-  return date.toDateString();
+  // return date.toDateString();
+  return date;
 };
 
 // Validate duration input
@@ -211,7 +217,6 @@ router.get("/users", (req, res, next) => {
 
 // Get logs of the document
 router.get("/users/:_id/logs", (req, res, next) => {
-  // console.log(req.query);
   findLogsUser(req.params._id, req.query, (err, data) => {
     if (err) {
       next(err);
