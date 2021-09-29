@@ -1,55 +1,39 @@
-const express = require("express");
-const app = express();
-const router = express.Router();
 const mongoose = require("mongoose");
-const bodyParser = require("body-parser");
-const { Schema } = mongoose;
 
-// Use body parser to encode form data
-router.use(bodyParser.json());
-router.use(bodyParser.urlencoded({ extended: true }));
-
-// Connect mongodb
-mongoose
-  .connect(process.env.MONGO_URI)
-  .then(() => console.log("Connection successful"))
-  .catch((err) => console.error("Connection failed"));
-
-// Set up mongo user schema
-const userSchema = new Schema({
-  username: String,
-  _id: String,
-  logs: [Object],
-});
-
-// Set up mongo user model
-const userModel = new mongoose.model("user", userSchema);
+// Model prototype
+class modelPrototype {
+  constructor(username) {
+    this.username = username;
+    this._id = mongoose.Types.ObjectId().toString();
+    this.logs = [];
+  }
+}
 
 // Create new user API
-const createUser = (username, callback) => {
+const createUser = (username, callback, model) => {
   // Create document by instantiating user model
-  const user = new userModel({
-    username: username,
-    _id: mongoose.Types.ObjectId().toString(),
-    logs: [],
-  });
+  const user = new model(new modelPrototype(username));
+  // Save user to database
   user.save((err, data) => {
     callback(err, data);
   });
 };
 
 // Find all users
-const findAllUser = (callback) => {
+const findAllUser = (callback, model) => {
   const filter = {};
   const projection = { __v: false, logs: false };
-  userModel.find(filter, projection, (err, data) => {
+  // Find all users from databse (eg: {_id: userId, username: username })
+  model.find(filter, projection, (err, data) => {
     callback(err, data);
   });
 };
 
 // Update defined user
-const updateUser = (userId, time, date, description, callback) => {
+const updateUser = (userId, time, date, description, callback, model) => {
+  // Filter user by userId
   const filter = { _id: userId };
+  // Aggregation query to add logs object
   const aggregateUpdate = {
     $addToSet: {
       logs: {
@@ -59,19 +43,20 @@ const updateUser = (userId, time, date, description, callback) => {
       },
     },
   };
-  userModel.updateOne(
+  // Update user adding logs object
+  model.updateOne(
     filter,
     aggregateUpdate,
-    { strict: false }, // Options
+    { strict: false }, // Options to override object has not existed before to db
     (err, data) => {
-      // Callback
-      callback(err, data);
+      callback(err, data); // Callback
     }
   );
 };
 
 // Find logs of each user
-const findLogsUser = (userId, query, callback) => {
+const findLogsUser = (userId, query, callback, model) => {
+  // Aggregation query to find logs of given user
   const pipeline = [
     { $match: { _id: userId } },
     {
@@ -83,7 +68,8 @@ const findLogsUser = (userId, query, callback) => {
       },
     },
   ];
-  userModel.aggregate(validateQuery(userId, query), (err, data) => {
+  // Find logs of given user
+  model.aggregate(validateQuery(userId, query), (err, data) => {
     callback(err, data);
   });
 };
@@ -91,6 +77,7 @@ const findLogsUser = (userId, query, callback) => {
 // Validate query format
 const validateQuery = (userId, query) => {
   let pipeline;
+  // Aggregation query if query parameters are given (eg: from=yyyy-mm-dd&to=yyyy-mm-dd&limit=limitNumber)
   if (query.to && query.from && query.limit) {
     pipeline = [
       {
@@ -123,6 +110,7 @@ const validateQuery = (userId, query) => {
         },
       },
     ];
+    // Aggregation for normal request
   } else {
     pipeline = [
       { $match: { _id: userId } },
@@ -152,7 +140,6 @@ const dateCheck = (date) => {
   if (!date.isValid()) {
     date = new Date();
   }
-  // return date.toDateString();
   return date;
 };
 
@@ -174,54 +161,10 @@ const descriptionCheck = (description) => {
   throw error;
 };
 
-// Post a new user with defined username
-router.post("/users", (req, res, next) => {
-  createUser(req.body.username, (err, data) => {
-    if (err) {
-      next(err);
-    } else if (data) {
-      res.status(200).send(data);
-    }
-  });
-});
-
-// Post a exercise to defined user
-router.post("/users/:_id/exercises", (req, res, next) => {
-  updateUser(
-    req.params._id,
-    durationCheck(req.body.duration),
-    dateCheck(req.body.date),
-    descriptionCheck(req.body.description),
-    (err, data) => {
-      if (err) {
-        res.status(404).send(err);
-      } else if (data) {
-        res.status(200).send(data);
-      }
-    }
-  );
-});
-
-// Get all users
-router.get("/users", (req, res, next) => {
-  findAllUser((err, data) => {
-    if (err) {
-      next(err);
-    } else if (data) {
-      res.status(200).send(data);
-    }
-  });
-});
-
-// Get logs of the document
-router.get("/users/:_id/logs", (req, res, next) => {
-  findLogsUser(req.params._id, req.query, (err, data) => {
-    if (err) {
-      next(err);
-    } else if (data) {
-      res.status(200).send(data);
-    }
-  });
-});
-
-module.exports = router;
+module.exports.createUser = createUser;
+module.exports.findAllUser = findAllUser;
+module.exports.updateUser = updateUser;
+module.exports.findLogsUser = findLogsUser;
+module.exports.dateCheck = dateCheck;
+module.exports.durationCheck = durationCheck;
+module.exports.descriptionCheck = descriptionCheck;
